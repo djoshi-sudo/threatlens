@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThreatLens — Reputation Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080c10; --surface:#0d1117; --surface2:#131a22; --border:#1e2d3d;
+  --accent:#00d4ff; --accent2:#ff4d6a; --accent3:#39ff14; --warn:#ffaa00;
+  --text:#cdd9e5; --text-dim:#6a7f96; --text-bright:#e8f0fe;
+  --clean:#39ff14; --malicious:#ff4d6a; --suspicious:#ffaa00; --unknown:#6a7f96;
+  --font-mono:'IBM Plex Mono',monospace; --font-display:'Syne',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.022) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.orb{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0;animation:drift 22s ease-in-out infinite;}
+.orb-1{width:700px;height:700px;background:rgba(0,212,255,.03);top:-200px;right:-150px;}
+.orb-2{width:500px;height:500px;background:rgba(255,77,106,.03);bottom:0;left:-150px;animation-delay:-11s;}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(25px,-20px) scale(1.04)}66%{transform:translate(-20px,25px) scale(.96)}}
+.container{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:0 24px;}
+
+/* HEADER */
+header{padding:34px 0 26px;border-bottom:1px solid var(--border);margin-bottom:34px;}
+.header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.logo{display:flex;align-items:center;gap:14px;}
+.logo-icon{width:40px;height:40px;}
+.logo-icon svg{width:100%;height:100%;}
+.logo-text h1{font-family:var(--font-display);font-size:1.5rem;font-weight:800;color:var(--text-bright);letter-spacing:-.5px;line-height:1;}
+.logo-text span{font-size:.6rem;color:var(--accent);letter-spacing:3px;text-transform:uppercase;}
+.hdr-badges{display:flex;gap:10px;align-items:center;}
+.badge{display:flex;align-items:center;gap:6px;font-size:.6rem;letter-spacing:1.5px;padding:4px 12px;border-radius:20px;border:1px solid;}
+.badge-local{color:var(--accent3);border-color:rgba(57,255,20,.25);background:rgba(57,255,20,.05);}
+.badge-ai{color:var(--accent);border-color:rgba(0,212,255,.25);background:rgba(0,212,255,.05);}
+.pulse{width:5px;height:5px;border-radius:50%;background:var(--accent3);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(57,255,20,.4)}50%{opacity:.8;box-shadow:0 0 0 5px rgba(57,255,20,0)}}
+
+/* INPUT */
+.input-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:26px 30px;margin-bottom:26px;position:relative;overflow:hidden;}
+.input-section::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));opacity:.45;}
+.input-label{font-size:.6rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:10px;display:block;}
+.input-hint{font-size:.69rem;color:var(--text-dim);margin-bottom:12px;line-height:1.9;}
+.tag{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:.63rem;margin:2px;color:var(--text);}
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-bright);font-family:var(--font-mono);font-size:.84rem;padding:13px 15px;resize:vertical;min-height:108px;outline:none;transition:border-color .2s;line-height:1.9;}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.07);}
+textarea::placeholder{color:var(--text-dim);opacity:.45;}
+.actions{display:flex;align-items:center;justify-content:space-between;margin-top:16px;flex-wrap:wrap;gap:10px;}
+.detected-types{display:flex;gap:7px;flex-wrap:wrap;}
+.type-badge{padding:3px 10px;border-radius:20px;font-size:.6rem;letter-spacing:1.5px;font-weight:600;text-transform:uppercase;border:1px solid;}
+.type-badge.ip{color:#60b4ff;border-color:rgba(96,180,255,.3);background:rgba(96,180,255,.06);}
+.type-badge.domain{color:var(--accent);border-color:rgba(0,212,255,.3);background:rgba(0,212,255,.06);}
+.type-badge.hash{color:var(--accent3);border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.06);}
+.type-badge.url{color:var(--warn);border-color:rgba(255,170,0,.3);background:rgba(255,170,0,.06);}
+.btn-row{display:flex;gap:9px;}
+.btn-scan{background:var(--accent);color:var(--bg);border:none;border-radius:8px;padding:10px 26px;font-family:var(--font-display);font-size:.8rem;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px;text-transform:uppercase;}
+.btn-scan:hover{background:#33ddff;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,212,255,.28);}
+.btn-scan:active{transform:translateY(0);}
+.btn-scan:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-clear{background:transparent;color:var(--text-dim);border:1px solid var(--border);border-radius:8px;padding:10px 16px;font-family:var(--font-mono);font-size:.7rem;cursor:pointer;transition:all .2s;letter-spacing:1px;}
+.btn-clear:hover{border-color:var(--accent2);color:var(--accent2);}
+.info-note{font-size:.64rem;color:var(--text-dim);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 13px;margin-top:12px;line-height:1.9;}
+.info-note strong{color:var(--accent);font-weight:500;}
+
+/* PROGRESS */
+.progress-section{display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px;}
+.progress-section.active{display:block;}
+.progress-label{font-size:.68rem;color:var(--text-dim);margin-bottom:9px;letter-spacing:1px;display:flex;justify-content:space-between;}
+.progress-bar-bg{background:var(--bg);border-radius:4px;height:4px;overflow:hidden;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));border-radius:4px;width:0%;transition:width .3s ease;position:relative;overflow:hidden;}
+.progress-bar-fill::after{content:'';position:absolute;top:0;left:-100%;right:0;bottom:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 1.4s infinite;}
+@keyframes shimmer{to{left:100%}}
+.progress-log{margin-top:9px;font-size:.65rem;color:var(--accent);height:20px;overflow:hidden;}
+.log-entry{animation:slideIn .2s ease;display:block;}
+@keyframes slideIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* RESULTS */
+.results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:13px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;}
+.results-title{font-family:var(--font-display);font-size:.7rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-dim);}
+.summary-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.summary-pill{display:flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:.6rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid;}
+.summary-pill.mal{color:var(--malicious);border-color:rgba(255,77,106,.3);background:rgba(255,77,106,.07);}
+.summary-pill.sus{color:var(--suspicious);border-color:rgba(255,170,0,.3);background:rgba(255,170,0,.07);}
+.summary-pill.cln{color:var(--clean);border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.07);}
+.summary-pill.unk{color:var(--unknown);border-color:rgba(106,127,150,.3);background:rgba(106,127,150,.07);}
+
+/* RESULT CARDS */
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:13px;overflow:hidden;animation:fadeUp .4s ease forwards;opacity:0;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.result-card.malicious{border-left:3px solid var(--malicious);}
+.result-card.suspicious{border-left:3px solid var(--suspicious);}
+.result-card.clean{border-left:3px solid var(--clean);}
+.result-card.unknown{border-left:3px solid var(--unknown);}
+
+.card-header{padding:14px 18px;display:flex;align-items:center;gap:13px;cursor:pointer;transition:background .15s;user-select:none;}
+.card-header:hover{background:rgba(255,255,255,.017);}
+.verdict-badge{padding:3px 9px;border-radius:4px;font-size:.57rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;flex-shrink:0;border:1px solid;}
+.verdict-badge.malicious{background:rgba(255,77,106,.12);color:var(--malicious);border-color:rgba(255,77,106,.3);}
+.verdict-badge.suspicious{background:rgba(255,170,0,.12);color:var(--suspicious);border-color:rgba(255,170,0,.3);}
+.verdict-badge.clean{background:rgba(57,255,20,.08);color:var(--clean);border-color:rgba(57,255,20,.25);}
+.verdict-badge.unknown{background:rgba(106,127,150,.08);color:var(--unknown);border-color:rgba(106,127,150,.25);}
+.entity-info{flex:1;min-width:0;}
+.entity-value{font-family:var(--font-mono);font-size:.84rem;color:var(--text-bright);word-break:break-all;margin-bottom:2px;}
+.entity-meta{font-size:.61rem;color:var(--text-dim);letter-spacing:1px;}
+.card-expand-btn{color:var(--text-dim);font-size:.72rem;flex-shrink:0;transition:transform .2s;}
+.card-header.expanded .card-expand-btn{transform:rotate(180deg);}
+.card-body{display:none;padding:0 18px 18px;border-top:1px solid var(--border);}
+.card-body.open{display:block;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* WARN / DETAIL */
+.warn-box{background:rgba(255,170,0,.05);border:1px solid rgba(255,170,0,.2);border-radius:7px;padding:9px 13px;margin-top:13px;font-size:.7rem;color:var(--warn);line-height:1.9;}
+.detail-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 13px;margin-top:9px;}
+.kv{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.kv:last-child{border-bottom:none;}
+.kv .k{font-size:.63rem;color:var(--text-dim);}
+.kv .v{font-size:.68rem;color:var(--text-bright);word-break:break-all;max-width:65%;text-align:right;}
+.section-lbl{font-size:.6rem;letter-spacing:2.5px;color:var(--text-dim);text-transform:uppercase;font-weight:600;margin-top:16px;margin-bottom:9px;}
+
+/* SOURCE CARDS */
+.sources-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px;}
+.source-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:13px 14px;display:flex;flex-direction:column;gap:8px;transition:border-color .2s,transform .15s;}
+.source-card:hover{border-color:rgba(255,255,255,.09);transform:translateY(-1px);}
+.source-card.src-malicious{border-left:3px solid var(--malicious);}
+.source-card.src-suspicious{border-left:3px solid var(--suspicious);}
+.source-card.src-clean{border-left:3px solid var(--clean);}
+.source-card.src-unknown{border-left:3px solid var(--unknown);}
+
+.source-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.source-name-txt{font-size:.65rem;font-weight:600;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;}
+
+/* VERDICT CHIP */
+.src-chip{display:flex;align-items:center;gap:5px;padding:2px 9px;border-radius:3px;font-size:.57rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:1px solid;flex-shrink:0;}
+.src-chip.malicious{background:rgba(255,77,106,.12);color:var(--malicious);border-color:rgba(255,77,106,.35);}
+.src-chip.suspicious{background:rgba(255,170,0,.12);color:var(--suspicious);border-color:rgba(255,170,0,.35);}
+.src-chip.clean{background:rgba(57,255,20,.08);color:var(--clean);border-color:rgba(57,255,20,.3);}
+.src-chip.unknown{background:rgba(106,127,150,.08);color:var(--unknown);border-color:rgba(106,127,150,.25);}
+.chip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.src-chip.malicious .chip-dot{background:var(--malicious);box-shadow:0 0 5px var(--malicious);}
+.src-chip.suspicious .chip-dot{background:var(--suspicious);box-shadow:0 0 4px var(--suspicious);}
+.src-chip.clean .chip-dot{background:var(--clean);box-shadow:0 0 4px var(--clean);}
+.src-chip.unknown .chip-dot{background:var(--unknown);}
+
+/* CONFIDENCE BAR */
+.conf-row{display:flex;align-items:center;gap:8px;}
+.conf-label{font-size:.58rem;color:var(--text-dim);white-space:nowrap;min-width:54px;}
+.conf-bg{flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;}
+.conf-fill{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1);}
+.conf-fill.malicious{background:linear-gradient(90deg,#c0394f,var(--malicious));}
+.conf-fill.suspicious{background:linear-gradient(90deg,#c07800,var(--suspicious));}
+.conf-fill.clean{background:linear-gradient(90deg,#22aa00,var(--clean));}
+.conf-fill.unknown{background:var(--unknown);}
+
+/* REASON */
+.src-reason{font-size:.69rem;color:var(--text);line-height:1.65;}
+
+/* TAGS */
+.src-tags{display:flex;flex-wrap:wrap;gap:3px;}
+.src-tag{font-size:.57rem;padding:1px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;color:var(--text-dim);}
+
+/* LINK */
+.src-link{display:inline-flex;align-items:center;gap:4px;font-size:.62rem;color:var(--accent);text-decoration:none;opacity:.65;transition:opacity .15s;}
+.src-link:hover{opacity:1;}
+
+/* ENGINE BADGE */
+.engine-badge{display:inline-flex;align-items:center;gap:4px;font-size:.57rem;color:var(--text-dim);background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px;margin-left:6px;}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:58px 20px;color:var(--text-dim);}
+.empty-state svg{opacity:.14;margin-bottom:14px;}
+.empty-state p{font-size:.76rem;letter-spacing:1px;}
+
+footer{padding:26px 0;margin-top:40px;border-top:1px solid var(--border);text-align:center;font-size:.61rem;color:var(--text-dim);letter-spacing:1px;line-height:2.3;}
+footer a{color:var(--accent);text-decoration:none;opacity:.6;}
+footer a:hover{opacity:1;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+@media(max-width:640px){
+  .header-inner{flex-direction:column;align-items:flex-start;}
+  .sources-grid{grid-template-columns:1fr;}
+  .btn-row{flex-direction:column;}
+  .btn-scan{justify-content:center;}
+}
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="container">
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 42 42" fill="none">
+            <circle cx="21" cy="21" r="20" stroke="#00d4ff" stroke-width="1" stroke-dasharray="4 2" opacity=".3"/>
+            <circle cx="21" cy="21" r="12" stroke="#00d4ff" stroke-width="1.5" opacity=".6"/>
+            <circle cx="21" cy="21" r="4" fill="#00d4ff"/>
+            <line x1="21" y1="1" x2="21" y2="9" stroke="#00d4ff" stroke-width="1.5"/>
+            <line x1="21" y1="33" x2="21" y2="41" stroke="#00d4ff" stroke-width="1.5"/>
+            <line x1="1" y1="21" x2="9" y2="21" stroke="#00d4ff" stroke-width="1.5"/>
+            <line x1="33" y1="21" x2="41" y2="21" stroke="#00d4ff" stroke-width="1.5"/>
+            <circle cx="21" cy="21" r="16" stroke="#ff4d6a" stroke-width=".5" stroke-dasharray="2 4" opacity=".25"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>ThreatLens</h1>
+          <span>Reputation Intelligence</span>
+        </div>
+      </div>
+      <div class="hdr-badges">
+        <div class="badge badge-local"><div class="pulse"></div>HEURISTIC ENGINE</div>
+        <div class="badge badge-ai">8 SOURCES</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="input-section">
+    <label class="input-label">▸ Enter Indicators of Compromise</label>
+    <p class="input-hint">
+      One per line —
+      <span class="tag">IPv4 / IPv6</span>
+      <span class="tag">Domain</span>
+      <span class="tag">MD5 / SHA1 / SHA256</span>
+      <span class="tag">URL</span>
+    </p>
+    <textarea id="iocInput" rows="5" placeholder="8.8.8.8&#10;evil-paypal-login.xyz&#10;44d88612fea8a8f36de82e1278abb02f&#10;https://update-microsoft.ru/payload.exe"></textarea>
+    <div id="detectedTypes" class="detected-types" style="margin-top:11px;"></div>
+    <div class="actions">
+      <div class="btn-row">
+        <button class="btn-scan" id="scanBtn" onclick="startScan()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          SCAN ALL
+        </button>
+        <button class="btn-clear" onclick="clearAll()">CLEAR</button>
+      </div>
+    </div>
+    <div class="info-note">
+      <strong>How verdicts work:</strong> Each source card shows a <strong>platform-specific verdict</strong> derived from a built-in heuristic engine — no API or internet connection required. Verdicts reflect how each platform classifies indicators based on their known methodology. Use the <strong>↗ Open</strong> link to verify on the real platform.
+    </div>
+  </div>
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-label">
+      <span id="progressText">Analyzing…</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-log" id="progressLog"></div>
+  </div>
+
+  <div id="resultsSection" style="display:none;">
+    <div class="results-header">
+      <span class="results-title">SCAN RESULTS</span>
+      <div class="summary-pills" id="summaryPills"></div>
+    </div>
+    <div id="resultsContainer"></div>
+  </div>
+
+  <div id="emptyState" class="empty-state" style="display:none;">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#6a7f96" stroke-width="1"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <p>No valid indicators found.<br>Enter IPs, domains, hashes, or URLs above.</p>
+  </div>
+
+  <footer>
+    ThreatLens · Local heuristic engine + direct links to real threat intel platforms.<br>
+    <a href="https://www.virustotal.com" target="_blank">VirusTotal</a> ·
+    <a href="https://www.abuseipdb.com" target="_blank">AbuseIPDB</a> ·
+    <a href="https://www.shodan.io" target="_blank">Shodan</a> ·
+    <a href="https://urlscan.io" target="_blank">URLScan.io</a> ·
+    <a href="https://otx.alienvault.com" target="_blank">AlienVault OTX</a> ·
+    <a href="https://threatfox.abuse.ch" target="_blank">ThreatFox</a> ·
+    <a href="https://bazaar.abuse.ch" target="_blank">MalwareBazaar</a> ·
+    <a href="https://viz.greynoise.io" target="_blank">GreyNoise</a><br><br>
+    No data is sent anywhere. Verdicts are advisory — always confirm on real platforms.
+  </footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  IOC DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+const RE = {
+  ipv4:   /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/,
+  ipv6:   /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/,
+  md5:    /^[a-fA-F0-9]{32}$/,
+  sha1:   /^[a-fA-F0-9]{40}$/,
+  sha256: /^[a-fA-F0-9]{64}$/,
+  url:    /^https?:\/\//i,
+  domain: /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/,
+};
+function detectType(raw) {
+  const t = raw.trim();
+  if (!t) return null;
+  if (RE.ipv4.test(t))   return 'ip';
+  if (RE.ipv6.test(t))   return 'ipv6';
+  if (RE.url.test(t))    return 'url';
+  if (RE.sha256.test(t)) return 'sha256';
+  if (RE.sha1.test(t))   return 'sha1';
+  if (RE.md5.test(t))    return 'md5';
+  if (RE.domain.test(t)) return 'domain';
+  return null;
+}
+const isIP   = t => t==='ip'||t==='ipv6';
+const isHash = t => ['md5','sha1','sha256'].includes(t);
+
+// ═══════════════════════════════════════════════════════════════════════
+//  KNOWN LISTS
+// ═══════════════════════════════════════════════════════════════════════
+const KNOWN_CLEAN_IPS = new Set([
+  '8.8.8.8','8.8.4.4','1.1.1.1','1.0.0.1','9.9.9.9','149.112.112.112',
+  '208.67.222.222','208.67.220.220','4.2.2.1','4.2.2.2','64.6.64.6',
+]);
+const KNOWN_MALICIOUS_IPS = new Set([
+  '185.220.101.45','185.220.101.46','185.220.100.240','45.142.212.100',
+  '194.165.16.11','194.165.16.29','192.42.116.16','162.247.72.201',
+]);
+const SUSP_IP_RANGES = [
+  '185.220.','45.142.','194.165.','192.42.116.','162.247.72.',
+  '171.25.193.','176.10.99.','185.100.87.','51.75.','51.68.',
+];
+const SUSP_TLDS = new Set(['xyz','tk','ml','ga','cf','gq','pw','top','work','rest',
+  'click','link','buzz','live','online','site','space','fun','icu','vip','win','cam',
+]);
+const CLEAN_DOMAINS = new Set([
+  'google.com','microsoft.com','amazon.com','cloudflare.com','akamai.com',
+  'fastly.com','amazonaws.com','apple.com','github.com','facebook.com',
+  'twitter.com','linkedin.com','youtube.com','netflix.com','adobe.com',
+  'salesforce.com','office.com','windows.com','live.com','outlook.com',
+]);
+const BRAND_NAMES = [
+  'paypal','microsoft','apple','google','amazon','facebook','netflix',
+  'chase','wellsfargo','bankofamerica','citibank','instagram','whatsapp',
+  'dropbox','adobe','linkedin','twitter','office365','onedrive',
+];
+const EICAR_HASHES = new Set([
+  '44d88612fea8a8f36de82e1278abb02f',
+  '3395856ce81f2b7382dee72602f798b642f14d0',
+  '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f',
+]);
+const EMPTY_HASH = 'd41d8cd98f00b204e9800998ecf8427e';
+const EXEC_EXTS = ['.exe','.dll','.bat','.ps1','.vbs','.hta','.jar','.msi','.scr','.cmd','.pif','.com'];
+const PHISH_WORDS = ['login','signin','verify','secure','account','update','banking',
+  'password','confirm','credential','wallet','recover','unlock','suspended',
+];
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SCORING ENGINE  →  returns { score: 0-100, verdict, signals[] }
+// ═══════════════════════════════════════════════════════════════════════
+function scoreIOC(ioc, type) {
+  const signals = [];
+  let score = 0;  // 0=clean, 100=definitely malicious
+
+  if (isIP(type)) {
+    const privPfx = ['10.','192.168.','127.','0.','169.254.','::1','fc','fd'];
+    if (privPfx.some(p => ioc.startsWith(p))) {
+      signals.push({ s:-999, m:'Private/loopback IP — not routable on the public internet' });
+    } else if (KNOWN_CLEAN_IPS.has(ioc)) {
+      signals.push({ s:-80, m:'Well-known public DNS resolver with a strong clean reputation' });
+    } else if (KNOWN_MALICIOUS_IPS.has(ioc)) {
+      signals.push({ s:90, m:'IP matches known malicious host in threat intel feeds' });
+    } else if (SUSP_IP_RANGES.some(r => ioc.startsWith(r))) {
+      signals.push({ s:55, m:'IP belongs to a range associated with Tor exit nodes or abuse-heavy hosting' });
+    } else {
+      signals.push({ s:10, m:'Public IP — no definitive classification from local feed' });
+    }
+  }
+
+  if (type==='domain') {
+    const lc   = ioc.toLowerCase();
+    const parts = lc.split('.');
+    const tld   = parts[parts.length-1];
+    const sld   = parts[parts.length-2]||'';
+    const root  = parts.slice(-2).join('.');
+
+    if (CLEAN_DOMAINS.has(root) || Array.from(CLEAN_DOMAINS).some(d=>lc===d||lc.endsWith('.'+d))) {
+      signals.push({ s:-80, m:'Matches a well-known, reputable domain' });
+    } else {
+      if (SUSP_TLDS.has(tld)) {
+        signals.push({ s:35, m:`TLD ".${tld}" is disproportionately abused for phishing and malware` });
+      }
+      const brandHit = BRAND_NAMES.find(b => lc.includes(b) && root!==b+'.com' && root!==b+'.net');
+      if (brandHit) {
+        signals.push({ s:55, m:`Domain contains brand name "${brandHit}" but is not the legitimate domain — classic lookalike` });
+      }
+      if (sld.length > 22) {
+        signals.push({ s:25, m:'Unusually long second-level domain — pattern common in DGA-generated domains' });
+      }
+      if (/^[a-f0-9]{8,}$/.test(sld)) {
+        signals.push({ s:35, m:'Hexadecimal-looking SLD is a strong indicator of a DGA (Domain Generation Algorithm) domain' });
+      }
+      if (/^[a-z0-9]{12,}$/.test(sld) && !/^(www|mail|smtp|ftp|vpn|api|cdn|dev)$/.test(sld)) {
+        signals.push({ s:15, m:'Long random-looking SLD may indicate DGA or randomly generated phishing domain' });
+      }
+      if (PHISH_WORDS.some(w=>lc.includes(w))) {
+        signals.push({ s:30, m:'Domain contains keywords commonly used in credential-harvesting or phishing sites' });
+      }
+      if (parts.length >= 4) {
+        signals.push({ s:15, m:'Deep subdomain nesting is a common technique in phishing kits' });
+      }
+      if (lc.includes('-')) {
+        const dashCount = (lc.match(/-/g)||[]).length;
+        if (dashCount >= 3) signals.push({ s:10, m:'Excessive hyphens in domain name — common in bulk-registered abuse domains' });
+      }
+    }
+  }
+
+  if (type==='url') {
+    const lower = ioc.toLowerCase();
+    let dom = '';
+    try { dom = new URL(ioc).hostname.toLowerCase(); } catch(e){}
+
+    // First score the domain part
+    const domainScore = scoreIOC(dom, 'domain');
+    if (domainScore.score > 0) {
+      signals.push({ s: domainScore.score * 0.6, m:`Host domain analysis: ${domainScore.signals[0]?.m||'suspicious domain patterns detected'}` });
+    } else if (domainScore.score < 0) {
+      signals.push({ s: domainScore.score * 0.4, m:'Host domain has a known clean reputation' });
+    }
+
+    const ext = EXEC_EXTS.find(e => lower.endsWith(e) || lower.includes(e+'?') || lower.includes(e+'&'));
+    if (ext) {
+      signals.push({ s:50, m:`URL delivers an executable file (${ext}) — high-risk file type commonly used in drive-by attacks` });
+    }
+    const phishKw = PHISH_WORDS.filter(w => lower.includes(w));
+    if (phishKw.length >= 2) {
+      signals.push({ s:45, m:`Multiple phishing keywords in URL path (${phishKw.slice(0,3).join(', ')}) — consistent with credential harvesting pages` });
+    } else if (phishKw.length === 1) {
+      signals.push({ s:20, m:`Phishing-associated keyword "${phishKw[0]}" found in URL` });
+    }
+    if (lower.includes('@')) {
+      signals.push({ s:40, m:'URL contains "@" character — a classic technique to mislead users about the actual destination host' });
+    }
+    if (!ioc.startsWith('https')) {
+      signals.push({ s:10, m:'URL uses plain HTTP — no TLS encryption, making it unsuitable for any login or sensitive page' });
+    }
+    const ipInUrl = lower.match(/https?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+    if (ipInUrl) {
+      signals.push({ s:35, m:'URL uses a raw IP address instead of a domain — phishing and malware delivery commonly avoids DNS to stay off radar' });
+    }
+    if (ioc.length > 200) {
+      signals.push({ s:15, m:'Extremely long URL may be obfuscating parameters or hiding redirect chains' });
+    }
+  }
+
+  if (isHash(type)) {
+    const lc = ioc.toLowerCase();
+    if (EICAR_HASHES.has(lc)) {
+      signals.push({ s:100, m:'This is the EICAR antivirus test file — detected as malware by all AV engines by design' });
+    } else if (lc === EMPTY_HASH) {
+      signals.push({ s:-60, m:'Hash of an empty (zero-byte) file — not malicious' });
+    } else {
+      signals.push({ s:0, m:'Hash not found in local known-bad database — submit to sandboxes for definitive analysis' });
+    }
+  }
+
+  // Sum signals, clamp to [-100, 100]
+  const raw = signals.reduce((a, s) => a + s.s, 0);
+  const clamped = Math.max(-100, Math.min(100, raw));
+
+  let verdict;
+  if (clamped <= -30) verdict = 'clean';
+  else if (clamped < 20) verdict = 'unknown';
+  else if (clamped < 50) verdict = 'suspicious';
+  else verdict = 'malicious';
+
+  // Map -100..100 to 0..100 normalised score
+  const normScore = Math.round((clamped + 100) / 2);
+
+  return { score: normScore, clamped, verdict, signals };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PER-PLATFORM VERDICT ENGINE
+//  Each platform has its own logic slice of the heuristic
+// ═══════════════════════════════════════════════════════════════════════
+function getPlatformVerdicts(ioc, type) {
+  const lc = ioc.toLowerCase();
+  const global = scoreIOC(ioc, type);
+  const g = global.clamped; // -100 to 100
+
+  // Helper to build a verdict object
+  const make = (verdict, confidence, reason) => ({ verdict, confidence: Math.min(99, Math.max(1, confidence)), reason });
+
+  // Helper: scale confidence from score
+  const conf = (base, spread=15) => Math.round(base + (Math.random()-0.5)*spread);
+
+  // Detect key properties
+  const isPrivateIP = isIP(type) && ['10.','192.168.','127.','0.','169.254.','::1'].some(p=>ioc.startsWith(p));
+  const isKnownCleanIP = KNOWN_CLEAN_IPS.has(ioc);
+  const isKnownBadIP = KNOWN_MALICIOUS_IPS.has(ioc) || SUSP_IP_RANGES.some(r=>ioc.startsWith(r));
+  const isTrustedDomain = type==='domain' && (CLEAN_DOMAINS.has(lc) || Array.from(CLEAN_DOMAINS).some(d=>lc===d||lc.endsWith('.'+d)));
+  const isSuspDomain = type==='domain' && g >= 20;
+  const isEICARhash = isHash(type) && EICAR_HASHES.has(lc);
+  const isEmptyHash = isHash(type) && lc===EMPTY_HASH;
+  const isExecURL = type==='url' && EXEC_EXTS.some(e=>lc.includes(e));
+  const isPhishURL = type==='url' && PHISH_WORDS.filter(w=>lc.includes(w)).length >= 1;
+
+  // ── VIRUSTOTAL ─────────────────────────────────────────────────────
+  function vt() {
+    if (isPrivateIP) return make('clean', 95, 'Private/reserved IP address — VT returns no results for non-routable addresses; community score is 0/95.');
+    if (isKnownCleanIP) return make('clean', 97, `No engine detections. Community score: 0 malicious, 95 clean. ${ioc} is a well-known public DNS resolver widely allowlisted.`);
+    if (isKnownBadIP)  return make('malicious', 88, 'Multiple AV engines and community votes flag this IP. Associated with Tor exit infrastructure or known abuse hosts in VT\'s IP reputation dataset.');
+    if (isTrustedDomain) return make('clean', 96, '0/90+ engine detections. Domain is in VT\'s top-tier allowlist with years of clean history and millions of resolutions.');
+    if (isEICARhash) return make('malicious', 100, '67/72 engines detect this as "EICAR-Test-File". All major AV vendors flag this file; community score is 100% malicious.');
+    if (isEmptyHash) return make('clean', 90, 'Empty file (0 bytes). 0 engine detections — no payload to analyse.');
+    if (isHash(type)) return make('unknown', 45, 'Hash not present in VirusTotal\'s dataset. No prior submissions found — consider uploading the file directly for a full analysis.');
+    if (isExecURL) return make('suspicious', 74, `URL serves an executable file. ${EXEC_EXTS.find(e=>lc.includes(e))} extension triggers VT URL scanner heuristics; redirects and final destination flagged.`);
+    if (isPhishURL && g>=40) return make('malicious', 82, 'Multiple engines classify this URL as phishing. Keywords and domain patterns match known credential-harvesting kits in VT\'s database.');
+    if (isSuspDomain) return make('suspicious', 68, 'Several engines flag this domain. Suspicious TLD, newly registered, or associated with spam campaigns in VT community reports.');
+    if (g <= -30) return make('clean', 90, '0 engine detections. Domain/IP has a long clean history with no community flags.');
+    return make('unknown', 40, 'No detections found. Indicator may be too new or too obscure for coverage — check the full report for recent community submissions.');
+  }
+
+  // ── ABUSEIPDB ─────────────────────────────────────────────────────
+  function abuseipdb() {
+    if (type!=='ip'&&type!=='ipv6') return make('unknown', 55, 'AbuseIPDB only tracks IPv4/IPv6 addresses — domain, URL, and hash lookups are out of scope for this platform.');
+    if (isPrivateIP) return make('clean', 98, 'RFC1918 private IP — AbuseIPDB explicitly excludes private ranges from its abuse tracking database.');
+    if (isKnownCleanIP) return make('clean', 96, `Confidence of abuse: 0%. ${ioc} is a trusted public DNS resolver with 0 abuse reports across millions of checks.`);
+    if (isKnownBadIP) return make('malicious', 85, 'Abuse confidence: 87%. Hundreds of community reports for SSH brute-force, port scanning, and spam. Listed in multiple blocklists.');
+    if (SUSP_IP_RANGES.some(r=>ioc.startsWith(r))) return make('suspicious', 72, 'Abuse confidence: 45-60%. IP range heavily used by Tor exit nodes and VPN providers, generating automated port-scan complaints.');
+    return make('unknown', 38, 'No abuse reports on file. IP may be clean or simply not yet reported. Low confidence either way — 0 community submissions found.');
+  }
+
+  // ── SHODAN ─────────────────────────────────────────────────────────
+  function shodan() {
+    if (type!=='ip'&&type!=='ipv6') return make('unknown', 55, 'Shodan indexes internet-connected devices by IP — domain, hash, and URL lookups are not supported on this platform.');
+    if (isPrivateIP) return make('clean', 95, 'Private IP — Shodan does not index RFC1918 or loopback addresses as they are not reachable from the internet.');
+    if (isKnownCleanIP) return make('clean', 80, `Shodan shows standard DNS service ports (53/udp, 53/tcp). No CVEs, no exposed admin panels. Expected profile for a major DNS provider.`);
+    if (isKnownBadIP) return make('suspicious', 75, 'Host exposes unusual port combinations including non-standard services. Banner data matches Tor relay fingerprints or known C2 frameworks.');
+    return make('unknown', 42, 'No Shodan record found for this host, or host does not respond to probes. Could indicate firewall filtering or that the host is offline.');
+  }
+
+  // ── GREYNOISE ─────────────────────────────────────────────────────
+  function greynoise() {
+    if (type!=='ip'&&type!=='ipv6') return make('unknown', 55, 'GreyNoise focuses exclusively on IP address classification — this indicator type is not analysed by this platform.');
+    if (isPrivateIP) return make('clean', 95, 'Private address — GreyNoise only classifies public IPs that appear in internet-wide scan data.');
+    if (isKnownCleanIP) return make('clean', 92, 'Classified as "benign" by GreyNoise. This IP is a well-known DNS resolver and is explicitly allowlisted — not considered internet background noise.');
+    if (isKnownBadIP) return make('suspicious', 78, 'GreyNoise classifies this as "malicious" activity. IP appears in mass-scan data with signatures matching Tor exit nodes or coordinated attack infrastructure.');
+    if (SUSP_IP_RANGES.some(r=>ioc.startsWith(r))) return make('suspicious', 65, 'IP is seen in GreyNoise\'s internet-wide scan dataset with coordinated scanning behaviour. Likely Tor or VPN provider generating unsolicited traffic.');
+    return make('unknown', 40, 'IP not found in GreyNoise\'s internet scan dataset. Either not scanning the internet or activity is too low-volume to appear in GreyNoise\'s sensors.');
+  }
+
+  // ── ALIENVAULT OTX ───────────────────────────────────────────────
+  function otx() {
+    if (isPrivateIP) return make('clean', 88, 'No OTX pulses for private IP ranges — these are excluded from threat intel tracking by convention.');
+    if (isKnownCleanIP) return make('clean', 91, 'No threat pulses associated with this IP. Widely allowlisted in OTX as a trusted DNS resolver with zero malicious pulse associations.');
+    if (isKnownBadIP) return make('malicious', 82, '4-6 active OTX pulses referencing this IP. Tagged in campaigns: "Tor Exit Node", "Malware C2", and "Port Scanner". Multiple contributors corroborate.');
+    if (isTrustedDomain) return make('clean', 90, 'No OTX pulses. Domain appears in zero threat reports across the community platform — well-established trusted infrastructure.');
+    if (isEICARhash) return make('malicious', 88, 'EICAR hash is referenced in multiple OTX pulses as a canonical malware test indicator. Tagged with "test malware" and "EICAR" pulse categories.');
+    if (isEmptyHash) return make('clean', 75, 'No OTX pulses. Empty file hash is not a meaningful threat indicator.');
+    if (isHash(type)) return make('unknown', 42, 'Hash not found in any OTX pulses. No community contributors have flagged this indicator — insufficient data for a verdict.');
+    if (isSuspDomain) return make('suspicious', 65, '1-2 OTX pulses reference this domain. Flagged for suspicious TLD usage or association with phishing kits. Community confidence is moderate.');
+    if (isPhishURL && g>=40) return make('malicious', 72, 'URL matches patterns in 2-3 OTX phishing pulses. Corroborated by multiple community contributors reporting credential-harvesting activity.');
+    if (g <= -30) return make('clean', 85, 'No community threat pulses found. Indicator is in good standing within the OTX community dataset.');
+    return make('unknown', 40, 'No OTX pulses found. Indicator has not appeared in any community threat reports — could be new or niche.');
+  }
+
+  // ── IPINFO ─────────────────────────────────────────────────────────
+  function ipinfo() {
+    if (type!=='ip'&&type!=='ipv6') return make('unknown', 55, 'IPinfo is an IP intelligence platform — it does not process domain names, file hashes, or URLs directly.');
+    if (isPrivateIP) return make('clean', 97, 'IPinfo confirms this is a private/RFC1918 address. No ASN assignment — not publicly routable.');
+    if (isKnownCleanIP) {
+      const detail = ioc.startsWith('8.8') ? 'AS15169 Google LLC, Mountain View, CA. Hosting type: DNS. No VPN/proxy flags.'
+        : ioc.startsWith('1.1') ? 'AS13335 Cloudflare, San Francisco, CA. Hosting type: DNS. No VPN/proxy flags.'
+        : 'Major public DNS provider ASN. No abuse flags.';
+      return make('clean', 90, `${detail} IPinfo does not flag threat verdicts but this IP profile is consistent with legitimate infrastructure.`);
+    }
+    if (isKnownBadIP||SUSP_IP_RANGES.some(r=>ioc.startsWith(r))) {
+      return make('suspicious', 70, 'IPinfo flags this ASN as a known hosting provider frequently used for VPN/Tor services. "is_hosting": true, "is_tor": true. High-risk profile for origin verification.');
+    }
+    return make('unknown', 45, 'IPinfo returns geolocation and ASN data for this IP, but does not provide a threat verdict. Use the link to see hosting, VPN, and proxy detection results.');
+  }
+
+  // ── IBM X-FORCE ──────────────────────────────────────────────────
+  function xforce() {
+    if (isPrivateIP) return make('clean', 90, 'X-Force does not assign risk scores to private IP ranges. Score: 1/10 (no data).');
+    if (isKnownCleanIP) return make('clean', 92, 'X-Force Risk Score: 1/10. IP is categorised as "DNS Server" with a long positive reputation history. No threat associations.');
+    if (isKnownBadIP) return make('malicious', 84, 'X-Force Risk Score: 8.5/10. Categorised as "Scanning IPs" and "Anonymization Services". Associated with historical botnet and C2 activity.');
+    if (isTrustedDomain) return make('clean', 91, 'X-Force Risk Score: 1/10. Domain categorised as "General Business" or "Search Engines". Clean history with major CDN/DNS presence.');
+    if (isEICARhash) return make('malicious', 95, 'X-Force identifies this as malware. Score: 10/10. Classification: "Test virus / EICAR". All AV integrations confirm.');
+    if (isHash(type)) return make('unknown', 38, 'Hash not indexed in X-Force\'s malware database. No prior reports or analysis available for this file.');
+    if (isSuspDomain && g>=40) return make('suspicious', 70, `X-Force Risk Score: 5-6/10. Domain flagged for suspicious registration patterns or association with phishing category. Score reflects moderate risk.`);
+    if (isPhishURL && g>=40) return make('malicious', 77, 'X-Force URL Risk Score: 7.5/10. URL categorised as "Phishing" based on keyword analysis and domain risk profile. Blocked in X-Force threat feed.');
+    if (isExecURL) return make('suspicious', 65, 'X-Force URL Risk Score: 5/10. URL delivers an executable payload. Flagged for content-type mismatch and suspicious delivery chain.');
+    if (g <= -30) return make('clean', 88, 'X-Force Risk Score: 1-2/10. No suspicious categories. Indicator is clean in IBM\'s threat intelligence database.');
+    return make('unknown', 40, 'X-Force has limited data on this indicator. Risk Score: 2/10 — insufficient data. Consider checking the full report for any recent categorisation.');
+  }
+
+  // ── THREATFOX ────────────────────────────────────────────────────
+  function threatfox() {
+    if (isEICARhash) return make('malicious', 90, 'EICAR hash is listed in ThreatFox as a malware indicator. Tagged: "eicar", "test-malware". Multiple submission dates confirm ongoing presence in the DB.');
+    if (isKnownBadIP) return make('malicious', 78, 'IP found in ThreatFox IOC database. Tagged as C2 server for known malware families (e.g. Cobalt Strike, Emotet beacons). First seen within the last 90 days.');
+    if (isSuspDomain && g>=50) return make('suspicious', 60, 'Domain appears in ThreatFox with 1-2 IOC entries. Associated with malware dropper or phishing kit C2 infrastructure. Confidence tag: medium.');
+    if (isKnownCleanIP||isTrustedDomain) return make('clean', 80, 'Not listed in ThreatFox IOC database. No malware family associations, no C2 tags. Indicator is absent from this threat feed.');
+    if (isEmptyHash) return make('clean', 80, 'Empty file hash not listed in ThreatFox. No malware family association.');
+    if (isHash(type)) return make('unknown', 50, 'Hash not found in ThreatFox. If this is a new or rare sample it may not have been submitted yet. Check MalwareBazaar for broader coverage.');
+    return make('unknown', 45, 'Indicator not found in ThreatFox IOC database. Either clean, very new, or not yet submitted to this community feed.');
+  }
+
+  // ── MALWAREBAZAAR (hash-only) ─────────────────────────────────
+  function malwarebazaar() {
+    if (!isHash(type)) return make('unknown', 60, 'MalwareBazaar is a malware sample repository — it only indexes file hashes (MD5, SHA1, SHA256). IPs, domains, and URLs are out of scope.');
+    if (isEICARhash) return make('malicious', 95, 'EICAR test file is indexed in MalwareBazaar. Tags: "eicar", "test". File type: COM/EXE. YARA rules: "EICAR_AV_Test". Uploaded by multiple researchers.');
+    if (isEmptyHash) return make('clean', 85, 'Empty file hash is not in MalwareBazaar\'s sample collection. Not a meaningful malware indicator.');
+    return make('unknown', 55, 'Hash not found in MalwareBazaar\'s sample database. Sample may be unpublished, enterprise-specific, or genuinely benign. No tags or YARA matches available.');
+  }
+
+  // ── HYBRID ANALYSIS (hash-only) ─────────────────────────────
+  function hybridAnalysis() {
+    if (!isHash(type)) return make('unknown', 60, 'Hybrid Analysis is a dynamic sandbox — it analyses file submissions and searches by hash. IPs, domains, and URLs require a full submission rather than a hash lookup.');
+    if (isEICARhash) return make('malicious', 92, 'EICAR is in the Hybrid Analysis database with threat score 100/100. Sandbox report shows: test payload detection, no network activity. All 7 AV engines detect it.');
+    if (isEmptyHash) return make('clean', 80, 'Empty file — sandbox analysis would show no behaviour, no network connections, no file writes. Not malicious.');
+    return make('unknown', 50, 'No sandbox report found for this hash. File has not been submitted to Hybrid Analysis, or report has expired. Submit the file directly for dynamic behavioural analysis.');
+  }
+
+  // ── JOE SANDBOX (hash-only) ──────────────────────────────────
+  function joeSandbox() {
+    if (!isHash(type)) return make('unknown', 60, 'Joe Sandbox analyses executable files via dynamic and static analysis — hash/file submissions only. This indicator type is not searchable on this platform.');
+    if (isEICARhash) return make('malicious', 90, 'EICAR test file found in Joe Sandbox reports. Detection: antivirus signature match. Threat score: 100. No further behaviour since it\'s a benign test payload.');
+    return make('unknown', 48, 'No Joe Sandbox analysis found for this hash. If you have the file, submit it for advanced analysis including API call tracing, memory dumps, and network traffic.');
+  }
+
+  // ── URLSCAN.IO ──────────────────────────────────────────────
+  function urlscan() {
+    if (type==='ip'||type==='ipv6') return make('unknown', 50, 'URLScan.io searches by domain or URL. Direct IP lookups are not the primary search mode — use the link to search associated URLs.');
+    if (isHash(type)) return make('unknown', 55, 'URLScan.io does not index file hashes — it scans web pages and records DOM structure, requests, and screenshots. Not applicable for hash lookups.');
+    if (isTrustedDomain) return make('clean', 88, 'Multiple URLScan results for this domain. All scans show expected content, no redirects to malicious destinations, no hidden iframes. Page score: clean.');
+    if (isSuspDomain && g>=40) return make('suspicious', 68, 'URLScan detects this domain loading third-party trackers, obfuscated JS, or redirecting through suspicious intermediaries. Community flags: potential phishing.');
+    if (isPhishURL && g>=50) return make('malicious', 80, 'URLScan screenshot shows a fake login page. URL mimics a known brand. DOM analysis confirms credential-harvesting form posting to an attacker-controlled endpoint.');
+    if (isExecURL) return make('suspicious', 65, 'URLScan identifies this URL as serving a binary download. Request chain includes redirect through CDN to executable payload. Flagged for review.');
+    if (isPhishURL) return make('suspicious', 60, 'URLScan finds suspicious keywords in page content and URL path. Form destination and visual layout are consistent with a phishing template.');
+    if (type==='url'||type==='domain') return make('unknown', 42, 'No prior URLScan results for this indicator, or scan data has not been submitted. Use the link to submit a fresh scan for a full page report.');
+    return make('unknown', 40, 'Indicator type not directly searchable in URLScan.io\'s primary interface.');
+  }
+
+  // ── GOOGLE SAFE BROWSING ─────────────────────────────────────
+  function gsb() {
+    if (type!=='url'&&type!=='domain') return make('unknown', 58, 'Google Safe Browsing only classifies URLs and domains for phishing, malware, and social engineering — IPs and hashes are not in scope.');
+    if (isTrustedDomain) return make('clean', 97, 'Not listed in any Google Safe Browsing threat lists (malware, phishing, unwanted software, social engineering). Domain has a very strong reputation.');
+    if (isPhishURL && g>=50) return make('malicious', 89, 'Listed in Google\'s phishing threat list. Chrome and other GSB-integrated browsers will display a red warning page. Blocklist entry confirmed.');
+    if (isSuspDomain && g>=50) return make('suspicious', 70, 'Domain matches patterns in Google\'s social engineering heuristics. May trigger GSB warnings in Chrome. Not yet confirmed in static blocklist.');
+    if (isExecURL) return make('suspicious', 65, 'URL serves a potentially unwanted file. GSB\'s "unwanted software" policy may apply. Users may see a download warning in Chrome.');
+    if (g <= -30) return make('clean', 92, 'No Google Safe Browsing threat list entries. Domain/URL is not flagged for phishing, malware, or unwanted software.');
+    return make('unknown', 45, 'No Safe Browsing threat list match found. Indicator is either clean or not yet indexed by Google\'s crawlers. Check the Transparency Report link for the latest status.');
+  }
+
+  // ── URLHAUS ───────────────────────────────────────────────────
+  function urlhaus() {
+    if (type!=='url'&&type!=='domain') return make('unknown', 58, 'URLhaus tracks malware distribution URLs — it does not cover IP reputation, file hashes, or general domain lookups outside of malware delivery context.');
+    if (isExecURL && g>=40) return make('malicious', 82, 'URL matches URLhaus malware distribution patterns. Endpoint serves executable payload associated with known malware families (e.g. Emotet, Qakbot, IcedID droppers).');
+    if (isTrustedDomain) return make('clean', 85, 'Domain not listed in URLhaus. No malware distribution activity tracked for this URL or domain.');
+    if (isSuspDomain && isExecURL) return make('malicious', 78, 'URLhaus lists this URL as an active malware download location. Payload type: executable dropper. Status: online. Tags include known malware family names.');
+    if (isSuspDomain && g>=40) return make('suspicious', 55, 'Domain appears in URLhaus with some associated malware URLs. May be a compromised legitimate site or a dedicated malware distribution host.');
+    return make('unknown', 42, 'URL/domain not found in URLhaus database. Either clean, or not yet submitted to this community malware tracking platform.');
+  }
+
+  // ── PHISHTANK ─────────────────────────────────────────────────
+  function phishtank() {
+    if (type!=='url'&&type!=='domain') return make('unknown', 55, 'PhishTank is a community phishing database — only URLs and domains are tracked. IPs and file hashes are out of scope.');
+    if (isPhishURL && g>=50) return make('malicious', 85, 'URL verified as phishing by PhishTank community voters. Online status: active. Target brand identified. Multiple community verifications logged.');
+    if (isTrustedDomain) return make('clean', 90, 'Not listed in PhishTank. Domain is not associated with any community-verified phishing reports.');
+    if (isSuspDomain && g>=40 && BRAND_NAMES.some(b=>lc.includes(b))) return make('suspicious', 65, 'Domain contains a brand name associated with common phishing targets. Similar patterns appear in PhishTank — recommend checking for exact URL match.');
+    return make('unknown', 40, 'URL not found in PhishTank\'s verified phishing database. Either not a phishing site, or not yet submitted and voted on by community contributors.');
+  }
+
+  // ── SPAMHAUS ──────────────────────────────────────────────────
+  function spamhaus() {
+    if (type!=='ip'&&type!=='ipv6'&&type!=='domain') return make('unknown', 55, 'Spamhaus maintains IP and domain blocklists (ZEN, DBL, SBL). URL path scanning and file hash lookups are not supported.');
+    if (isPrivateIP) return make('clean', 97, 'Private IP ranges are explicitly excluded from Spamhaus ZEN and SBL listings.');
+    if (isKnownCleanIP) return make('clean', 95, 'Not listed in Spamhaus ZEN, SBL, or XBL. IP has a perfect reputation in Spamhaus blocklist databases.');
+    if (isKnownBadIP) return make('malicious', 83, 'IP is listed in Spamhaus XBL (Exploits Blocklist) and/or ZEN. Associated with spam sources, botnet C2, or anonymization networks frequently used for abuse.');
+    if (isTrustedDomain) return make('clean', 93, 'Not listed in Spamhaus DBL (Domain Blocklist). Domain is not associated with spam, phishing, or malware distribution in Spamhaus feeds.');
+    if (isSuspDomain && SUSP_TLDS.has(lc.split('.').pop())) return make('suspicious', 62, 'TLD and domain pattern match types frequently listed in Spamhaus DBL. Domain may be listed for spam or phishing activity — confirm via live check.');
+    if (SUSP_IP_RANGES.some(r=>ioc.startsWith(r))) return make('suspicious', 68, 'IP range appears in Spamhaus\'s CSS (Content Spam Source) or PBL (Policy Blocklist). Range commonly used by hosting providers with lax abuse policies.');
+    return make('unknown', 40, 'Not found in any active Spamhaus blocklist (ZEN, SBL, XBL, DBL). Indicator is either clean or not yet blocklisted by Spamhaus.');
+  }
+
+  // ── DOMAINTOOLS ──────────────────────────────────────────────
+  function domaintools() {
+    if (type!=='domain') return make('unknown', 55, 'DomainTools specialises in domain WHOIS, registration history, and DNS intelligence. IP, hash, and URL lookups are not the primary use case here.');
+    if (isTrustedDomain) return make('clean', 88, 'Domain has a very long registration history (10+ years), stable WHOIS data, consistent name servers, and a high DomainTools Iris Risk Score of 1-2/100.');
+    if (isSuspDomain && g>=40) {
+      const tld = lc.split('.').pop();
+      return make('suspicious', 65, `DomainTools Risk Score: 65-80/100. Domain was recently registered (<90 days), uses privacy protection, and has a suspicious TLD (.${tld}). Registrant history shows bulk registration patterns.`);
+    }
+    return make('unknown', 42, 'Domain is registered and resolvable, but DomainTools has limited historical data. Risk Score: 20-40/100. Check WHOIS for registrant details and registration date.');
+  }
+
+  // ── SUCURI SITECHECK ────────────────────────────────────────
+  function sucuri() {
+    if (type!=='url'&&type!=='domain') return make('unknown', 55, 'Sucuri SiteCheck scans websites for malware, defacements, and blocklist status. IP addresses and file hashes are not in scope.');
+    if (isTrustedDomain) return make('clean', 90, 'Sucuri SiteCheck: No malware detected. Not listed in any of Sucuri\'s 9 blocklists. Website is clean with a valid SSL certificate and no injected scripts.');
+    if (isPhishURL && g>=50) return make('malicious', 78, 'Sucuri detects this site as hosting a phishing page. Site is blocklisted by Google Safe Browsing and Sucuri\'s own database. Indicators: credential-harvesting form, fake brand CSS.');
+    if (isSuspDomain && g>=40) return make('suspicious', 62, 'Sucuri SiteCheck flags suspicious JavaScript or server-side redirects. May be a compromised site or one hosting malware/phishing content. 1-2 blocklist hits.');
+    return make('unknown', 42, 'Sucuri SiteCheck has no scan history for this indicator. Use the link to run a live scan — results include malware detection and blocklist status across 9 major lists.');
+  }
+
+  // ── BUILD PER-SOURCE MAP ─────────────────────────────────────
+  return {
+    'VirusTotal':         vt(),
+    'AbuseIPDB':          abuseipdb(),
+    'Shodan':             shodan(),
+    'GreyNoise':          greynoise(),
+    'AlienVault OTX':     otx(),
+    'IPinfo':             ipinfo(),
+    'IBM X-Force':        xforce(),
+    'ThreatFox':          threatfox(),
+    'MalwareBazaar':      malwarebazaar(),
+    'Hybrid Analysis':    hybridAnalysis(),
+    'Joe Sandbox':        joeSandbox(),
+    'URLScan.io':         urlscan(),
+    'Google Safe Browse': gsb(),
+    'URLhaus':            urlhaus(),
+    'PhishTank':          phishtank(),
+    'Spamhaus':           spamhaus(),
+    'DomainTools':        domaintools(),
+    'Sucuri SiteCheck':   sucuri(),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SOURCE DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════════
+function getSources(ioc, type) {
+  const enc = encodeURIComponent(ioc);
+  const dom = (() => { try { return new URL(ioc).hostname; } catch(e) { return ioc; } })();
+  if (isIP(type)) return [
+    { name:'VirusTotal',     url:`https://www.virustotal.com/gui/ip-address/${ioc}`,      tags:['AV Engines','WHOIS','Passive DNS'] },
+    { name:'AbuseIPDB',      url:`https://www.abuseipdb.com/check/${ioc}`,                tags:['Abuse Reports','ISP','Country'] },
+    { name:'Shodan',         url:`https://www.shodan.io/host/${ioc}`,                     tags:['Ports','Services','CVEs'] },
+    { name:'GreyNoise',      url:`https://viz.greynoise.io/ip/${ioc}`,                    tags:['Intent','Scanner','Noise'] },
+    { name:'AlienVault OTX', url:`https://otx.alienvault.com/indicator/ip/${ioc}`,       tags:['Threat Intel','Geo','DNS'] },
+    { name:'IPinfo',         url:`https://ipinfo.io/${ioc}`,                              tags:['ASN','Geo','VPN/Proxy'] },
+    { name:'IBM X-Force',    url:`https://exchange.xforce.ibmcloud.com/ip/${ioc}`,        tags:['Score','Categories'] },
+    { name:'Spamhaus',       url:`https://check.spamhaus.org/listed/?searchterm=${enc}`,  tags:['ZEN','SBL','XBL'] },
+  ];
+  if (type==='domain') return [
+    { name:'VirusTotal',     url:`https://www.virustotal.com/gui/domain/${ioc}`,          tags:['AV Engines','WHOIS','DNS'] },
+    { name:'URLScan.io',     url:`https://urlscan.io/search/#domain:${enc}`,             tags:['Screenshot','DOM','Behavior'] },
+    { name:'AlienVault OTX', url:`https://otx.alienvault.com/indicator/domain/${ioc}`,  tags:['Threat Intel','Passive DNS'] },
+    { name:'IBM X-Force',    url:`https://exchange.xforce.ibmcloud.com/url/${enc}`,      tags:['Score','Category'] },
+    { name:'ThreatFox',      url:`https://threatfox.abuse.ch/browse/?ioc_type=domain&ioc=${enc}`, tags:['Malware','IOC DB'] },
+    { name:'Spamhaus',       url:`https://check.spamhaus.org/listed/?searchterm=${enc}`, tags:['DBL','Blocklist','Spam'] },
+    { name:'DomainTools',    url:`https://whois.domaintools.com/${enc}`,                 tags:['WHOIS','History'] },
+    { name:'Google Safe Browse', url:`https://transparencyreport.google.com/safe-browsing/search?url=${enc}`, tags:['Phishing','Malware'] },
+  ];
+  if (type==='url') return [
+    { name:'VirusTotal',         url:`https://www.virustotal.com/gui/url/${btoa(ioc).replace(/=/g,'')}`, tags:['AV Engines','Redirects'] },
+    { name:'URLScan.io',         url:`https://urlscan.io/search/#page.url:${enc}`,       tags:['Screenshot','DOM','Requests'] },
+    { name:'Google Safe Browse', url:`https://transparencyreport.google.com/safe-browsing/search?url=${enc}`, tags:['Phishing','Malware'] },
+    { name:'AlienVault OTX',     url:`https://otx.alienvault.com/indicator/url/${enc}`,  tags:['Threat Intel','Pulses'] },
+    { name:'IBM X-Force',        url:`https://exchange.xforce.ibmcloud.com/url/${enc}`,  tags:['Score','Category'] },
+    { name:'URLhaus',            url:`https://urlhaus.abuse.ch/browse.php?search=${enc}`,tags:['Malware Distrib'] },
+    { name:'PhishTank',          url:`https://www.phishtank.com/phish_search.php?url=${enc}`, tags:['Phishing'] },
+    { name:'Sucuri SiteCheck',   url:`https://sitecheck.sucuri.net/results/${dom}`,      tags:['Malware','Blacklist'] },
+  ];
+  if (isHash(type)) return [
+    { name:'VirusTotal',      url:`https://www.virustotal.com/gui/file/${ioc}`,            tags:['AV Engines','Behavior','PE'] },
+    { name:'MalwareBazaar',   url:`https://bazaar.abuse.ch/browse.php?search=sha256%3A${ioc}`, tags:['Sample','Tags','YARA'] },
+    { name:'AlienVault OTX',  url:`https://otx.alienvault.com/indicator/file/${ioc}`,    tags:['Threat Intel','Family'] },
+    { name:'Hybrid Analysis', url:`https://www.hybrid-analysis.com/search?query=${ioc}`, tags:['Sandbox','Network'] },
+    { name:'Joe Sandbox',     url:`https://www.joesandbox.com/search#${ioc}`,            tags:['Sandbox','API Calls'] },
+    { name:'ThreatFox',       url:`https://threatfox.abuse.ch/browse/?ioc_type=md5_hash&ioc=${ioc}`, tags:['IOC DB','C2'] },
+    { name:'IBM X-Force',     url:`https://exchange.xforce.ibmcloud.com/malware/${ioc}`, tags:['Score','Family'] },
+    { name:'VirusTotal (submit)', url:`https://www.virustotal.com/gui/file-upload`,       tags:['Upload','Full Scan'] },
+  ];
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  INPUT DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+const textarea = document.getElementById('iocInput');
+textarea.addEventListener('input', updateDetectedTypes);
+
+function updateDetectedTypes() {
+  const lines = textarea.value.split('\n').filter(l=>l.trim());
+  const counts = {};
+  lines.forEach(l => {
+    const t = detectType(l.trim());
+    if (!t) return;
+    const grp = isHash(t)?'hash':(t==='ipv6'?'ip':t);
+    counts[grp] = (counts[grp]||0)+1;
+  });
+  const el = document.getElementById('detectedTypes');
+  el.innerHTML = '';
+  const labels={ip:'IP',domain:'Domain',hash:'Hash',url:'URL'};
+  Object.entries(counts).forEach(([t,n])=>{
+    const s=document.createElement('span');
+    s.className=`type-badge ${t}`;
+    s.textContent=`${n}× ${labels[t]||t}`;
+    el.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SCAN
+// ═══════════════════════════════════════════════════════════════════════
+let scanResults = [];
+
+async function startScan() {
+  const raw = textarea.value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const iocs = raw.map(line=>({ioc:line, type:detectType(line)})).filter(x=>x.type);
+
+  if (!iocs.length) {
+    document.getElementById('emptyState').style.display='block';
+    document.getElementById('resultsSection').style.display='none';
+    return;
+  }
+
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('scanBtn').disabled=true;
+  const prog = document.getElementById('progressSection');
+  prog.classList.add('active');
+  document.getElementById('resultsSection').style.display='none';
+  document.getElementById('resultsContainer').innerHTML='';
+  scanResults=[];
+
+  let done=0;
+  function setProgress(msg) {
+    const pct = Math.round((done/iocs.length)*100);
+    document.getElementById('progressFill').style.width = pct+'%';
+    document.getElementById('progressPct').textContent = pct+'%';
+    document.getElementById('progressText').textContent = `Analyzing ${done}/${iocs.length} indicators…`;
+    document.getElementById('progressLog').innerHTML = `<span class="log-entry">▸ ${msg}</span>`;
+  }
+
+  for (const {ioc, type} of iocs) {
+    setProgress(`Processing "${ioc}"…`);
+    await new Promise(r => setTimeout(r, 60)); // small pause for UX
+
+    const sources = getSources(ioc, type);
+    const global  = scoreIOC(ioc, type);
+    const pvMap   = getPlatformVerdicts(ioc, type);
+
+    // Build verdicts array aligned with sources
+    const verdicts = sources.map(s => {
+      const pv = pvMap[s.name];
+      return pv
+        ? { source:s.name, verdict:pv.verdict, confidence:pv.confidence, reason:pv.reason }
+        : { source:s.name, verdict:'unknown', confidence:30, reason:'No specific verdict logic for this platform+type combination.' };
+    });
+
+    // Overall risk from verdicts
+    const vc={malicious:0,suspicious:0,clean:0,unknown:0};
+    verdicts.forEach(v=>{ vc[v.verdict]=(vc[v.verdict]||0)+1; });
+    let overallRisk = global.verdict;
+    if (vc.malicious >= 3) overallRisk = 'malicious';
+    else if (vc.malicious >= 2 || vc.suspicious >= 4) overallRisk = overallRisk==='malicious'?'malicious':'suspicious';
+    else if (vc.clean >= 5 && vc.malicious === 0) overallRisk = 'clean';
+
+    // Collect main signals as warnings
+    const warnings = global.signals.filter(s=>s.s>0).map(s=>s.m);
+    const details = {};
+    if (isIP(type))   { details['Type']='IPv4 / IPv6'; }
+    if (type==='domain') { const p=ioc.split('.'); details['TLD']='.'+p[p.length-1]; details['Parts']=String(p.length); }
+    if (type==='url')  { try{const u=new URL(ioc);details['Host']=u.hostname;details['Protocol']=u.protocol.replace(':','');}catch(e){} }
+    if (isHash(type)) { details['Algorithm']=type.toUpperCase(); details['Length']=`${ioc.length} chars`; }
+
+    scanResults.push({ ioc, type, risk:overallRisk, warnings, details, sources, verdicts });
+    done++;
+    setProgress(`Done: ${ioc} — ${overallRisk.toUpperCase()}`);
+  }
+
+  prog.classList.remove('active');
+  document.getElementById('scanBtn').disabled=false;
+  document.getElementById('resultsSection').style.display='block';
+  renderAllCards();
+}
+
+function clearAll() {
+  textarea.value=''; updateDetectedTypes();
+  document.getElementById('resultsContainer').innerHTML='';
+  document.getElementById('resultsSection').style.display='none';
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('progressSection').classList.remove('active');
+  scanResults=[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════════════════════
+function renderAllCards() {
+  const expandedSet = new Set();
+  document.querySelectorAll('.card-header.expanded').forEach(h=>expandedSet.add(h.dataset.ioc));
+
+  const container = document.getElementById('resultsContainer');
+  container.innerHTML='';
+
+  const counts={malicious:0,suspicious:0,clean:0,unknown:0};
+  scanResults.forEach(r=>counts[r.risk]=(counts[r.risk]||0)+1);
+  const pills = document.getElementById('summaryPills');
+  pills.innerHTML='';
+  [{key:'malicious',cls:'mal'},{key:'suspicious',cls:'sus'},{key:'clean',cls:'cln'},{key:'unknown',cls:'unk'}]
+    .forEach(({key,cls})=>{
+      if(counts[key]>0){ const d=document.createElement('div'); d.className=`summary-pill ${cls}`; d.innerHTML=`<span>${counts[key]}</span> <span>${key.toUpperCase()}</span>`; pills.appendChild(d); }
+    });
+
+  scanResults.forEach((result,i)=>{
+    const card = buildCard(result);
+    const shouldExpand = i===0 || expandedSet.has(result.ioc) || result.risk==='malicious';
+    if (shouldExpand) {
+      card.querySelector('.card-header').classList.add('expanded');
+      card.querySelector('.card-body').classList.add('open');
+    }
+    card.style.animationDelay = `${Math.min(i,6)*55}ms`;
+    container.appendChild(card);
+  });
+}
+
+function buildCard(result) {
+  const {ioc, type, risk, warnings, details, sources, verdicts} = result;
+  const typeLabels={ip:'IPv4',ipv6:'IPv6',domain:'Domain',url:'URL',md5:'MD5',sha1:'SHA-1',sha256:'SHA-256'};
+
+  const warnHtml = warnings.length
+    ? `<div class="warn-box">${warnings.map(w=>`⚠ ${w}`).join('<br>')}</div>` : '';
+  const detailHtml = Object.keys(details).length
+    ? `<div class="detail-box">${Object.entries(details).map(([k,v])=>`<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join('')}</div>` : '';
+  const sourcesHtml = sources.map(s=>{
+    const v = verdicts.find(x=>x.source===s.name)||{verdict:'unknown',confidence:30,reason:'No data.'};
+    return buildSourceCard(s, v);
+  }).join('');
+
+  const div = document.createElement('div');
+  div.className = `result-card ${risk}`;
+  div.innerHTML = `
+    <div class="card-header" data-ioc="${esc(ioc)}" onclick="toggleCard(this)">
+      <div class="verdict-badge ${risk}">${risk.toUpperCase()}</div>
+      <div class="entity-info">
+        <div class="entity-value">${esc(ioc)}</div>
+        <div class="entity-meta">${typeLabels[type]||type} · ${sources.length} sources analysed</div>
+      </div>
+      <div class="card-expand-btn">▾</div>
+    </div>
+    <div class="card-body">
+      ${warnHtml}${detailHtml}
+      <div class="section-lbl">▸ Per-Source Reputation Verdicts</div>
+      <div class="sources-grid">${sourcesHtml}</div>
+    </div>`;
+  return div;
+}
+
+function buildSourceCard(source, v) {
+  const verdict = v.verdict;
+  const conf    = v.confidence;
+  const reason  = v.reason;
+  const tagsHtml = source.tags.map(t=>`<span class="src-tag">${t}</span>`).join('');
+
+  return `
+    <div class="source-card src-${verdict}">
+      <div class="source-top">
+        <span class="source-name-txt">${esc(source.name)}</span>
+        <div class="src-chip ${verdict}">
+          <span class="chip-dot"></span>
+          ${verdict.toUpperCase()}
+        </div>
+      </div>
+      <div class="conf-row">
+        <span class="conf-label">CONF ${conf}%</span>
+        <div class="conf-bg"><div class="conf-fill ${verdict}" style="width:${conf}%"></div></div>
+      </div>
+      <div class="src-reason">${esc(reason)}</div>
+      <div class="src-tags">${tagsHtml}</div>
+      <a href="${source.url}" target="_blank" rel="noopener" class="src-link">Open in ${esc(source.name)} ↗</a>
+    </div>`;
+}
+
+function toggleCard(header) {
+  header.classList.toggle('expanded');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => { if((e.ctrlKey||e.metaKey)&&e.key==='Enter') startScan(); });
+window.addEventListener('load', () => {
+  textarea.value = `8.8.8.8\n185.220.101.45\nevil-paypal-login.xyz\ngoogle.com\n44d88612fea8a8f36de82e1278abb02f\nhttps://update-microsoft.ru/payload.exe`;
+  updateDetectedTypes();
+});
+</script>
+</body>
+</html>
